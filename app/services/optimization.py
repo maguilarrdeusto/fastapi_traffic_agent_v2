@@ -3,38 +3,43 @@ import httpx
 from app.config import settings
 
 async def calculate_kpis(weights: dict) -> dict:
-    # Normalizar los pesos si su suma es mayor a 1
+    # Normalizar los pesos si la suma es mayor a 1
     total_weight = sum(weights.values())
     if total_weight > 1:
         weights = {k: v / total_weight for k, v in weights.items()}
     
-    # Cálculo de los KPI baseline con multiplicadores fijos
+    # Extraemos los pesos para mayor legibilidad
+    w_pt = weights["weight_PublicTransport"]
+    w_oc = weights["weight_OperationalCost"]
+    w_cong = weights["weight_Congestion"]
+    w_em = weights["weight_Emissions"]
+
+    # Fórmulas que combinan términos lineales y cuadráticos para simular efectos no lineales
     baseline = {
-        "PT Frequency": weights["weight_PublicTransport"] * 54.925,  # 0.4 * 54.925 ≈ 21.97
-        "PT Delay": weights["weight_PublicTransport"] * 442.28,      # 0.4 * 442.28 ≈ 176.91
-        "Operational Cost": weights["weight_OperationalCost"] * 0.353,  # 0.15 * 0.353 ≈ 0.05312
-        "Congestion (Delay)": weights["weight_Congestion"] * 0.86,     # 0.3 * 0.86 ≈ 0.258
-        "Emissions": weights["weight_Emissions"] * 0.00786,            # 0.15 * 0.00786 ≈ 0.001179
+        "PT Frequency": w_pt * 50 + (w_pt ** 2) * 10,
+        "PT Delay": w_pt * 400 + (w_pt ** 2) * 50,
+        "Operational Cost": w_oc * 0.3 + (w_oc ** 2) * 0.1,
+        "Congestion (Delay)": w_cong * 0.8 + (w_cong ** 2) * 0.1,
+        "Emissions": w_em * 0.007 + (w_em ** 2) * 0.001,
     }
     baseline["System Cost"] = 468.38604563398485
 
-    # Cálculo de los KPI optimizados con otros multiplicadores fijos
     optimized = {
-        "PT Frequency": weights["weight_PublicTransport"] * 47.05882352941177,  # 0.4 * 47.05882 ≈ 18.82353
-        "PT Delay": weights["weight_PublicTransport"] * 390.2118247886935,       # 0.4 * 390.21182 ≈ 156.08473
-        "Operational Cost": weights["weight_OperationalCost"] * 0.41678,         # 0.15 * 0.41678 ≈ 0.06251685
-        "Congestion (Delay)": weights["weight_Congestion"] * 1.00409,            # 0.3 * 1.00409 ≈ 0.30122784
-        "Emissions": weights["weight_Emissions"] * 0.00776,                      # 0.15 * 0.00776 ≈ 0.00116457
+        "PT Frequency": w_pt * 45 + (w_pt ** 2) * 8,
+        "PT Delay": w_pt * 360 + (w_pt ** 2) * 40,
+        "Operational Cost": w_oc * 0.4 + (w_oc ** 2) * 0.12,
+        "Congestion (Delay)": w_cong * 1.0 + (w_cong ** 2) * 0.15,
+        "Emissions": w_em * 0.007 + (w_em ** 2) * 0.0008,
     }
     optimized["System Cost"] = 361.99167985875346
 
-    # Cálculo de la diferencia porcentual entre baseline y optimized para cada KPI,
-    # renombrando las claves para PT según el ejemplo
+    # Cálculo de la diferencia porcentual
     difference = {}
     for key in ["PT Frequency", "PT Delay", "Operational Cost", "Congestion (Delay)", "Emissions"]:
         base_val = baseline[key]
         opt_val = optimized[key]
         diff = (base_val - opt_val) / base_val if base_val != 0 else 0
+        # Renombrar claves para PT según el ejemplo
         if key == "PT Frequency":
             diff_key = "PT Cost Freq"
         elif key == "PT Delay":
@@ -43,7 +48,6 @@ async def calculate_kpis(weights: dict) -> dict:
             diff_key = key
         difference[diff_key] = diff
 
-    # Para "System Cost" se define la diferencia en 0
     difference["System Cost"] = 0
 
     return {
